@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { auth, db, storage } from '../firebaseConfig';
+import { db, storage, auth } from '../firebaseConfig';
 import { ref as dbRef, get, set } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Card, Form, Button, Container, Row, Col, Alert, Image } from 'react-bootstrap';
 import '../css/UpdateBook.css';
 
 const UpdateBook = () => {
-    const { uid, id } = useParams();
+    const { id } = useParams();
     const [title, setTitle] = useState('');
     const [author, setAuthor] = useState('');
     const [year, setYear] = useState('');
@@ -16,7 +16,6 @@ const UpdateBook = () => {
     const [pages, setPages] = useState('');
     const [image, setImage] = useState(null);
     const [currentImage, setCurrentImage] = useState(null);
-    const [previewImage, setPreviewImage] = useState(null);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
@@ -24,13 +23,7 @@ const UpdateBook = () => {
     useEffect(() => {
         const fetchBookData = async () => {
             try {
-                const user = auth.currentUser;
-                if (!user) {
-                    setError('User not authenticated.');
-                    return;
-                }
-
-                const bookRef = dbRef(db, `users/books/${id}/${uid}`);
+                const bookRef = dbRef(db, `books/${id}`);
                 const snapshot = await get(bookRef);
                 if (snapshot.exists()) {
                     const bookData = snapshot.val();
@@ -42,7 +35,7 @@ const UpdateBook = () => {
                     setPages(bookData.pages);
                     setCurrentImage(bookData.image);
                 } else {
-                    setError('Book not found. ');
+                    setError('Book not found.');
                 }
             } catch (error) {
                 setError('Failed to fetch book data. ' + error.message);
@@ -50,22 +43,24 @@ const UpdateBook = () => {
         };
 
         fetchBookData();
-    }, [uid, id]);
+    }, [id]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
         try {
+            const bookRef = dbRef(db, `books/${id}`);
+            let imageUrl = currentImage;
+
             const user = auth.currentUser;
-            if (!user) {
-                setError('User not authenticated.');
+            const uid = user ? user.uid : null;
+
+            if (!uid) {
+                setError('Pengguna tidak terautentikasi.');
                 return;
             }
 
-            const bookRef = dbRef(db, `users/books/${id}/${uid}`);
-            let imageUrl = currentImage;
-
             if (image) {
-                const imageRef = storageRef(storage, `books/${id}/${uid}/${image.name}`);
+                const imageRef = storageRef(storage, `books/${id}/${image.name}`);
                 await uploadBytes(imageRef, image);
                 imageUrl = await getDownloadURL(imageRef);
             }
@@ -78,6 +73,7 @@ const UpdateBook = () => {
                 year,
                 pages,
                 image: imageUrl,
+                uid
             });
 
             setSuccess('Book updated successfully!');
@@ -90,11 +86,7 @@ const UpdateBook = () => {
     };
 
     const handleImageChange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            setImage(file);
-            setPreviewImage(URL.createObjectURL(file));
-        }
+        setImage(event.target.files[0]);
     };
 
     return (
@@ -183,6 +175,7 @@ const UpdateBook = () => {
                                 <Form.Group controlId="formImage" className="mt-3">
                                     <Form.Label className="mb-3 fw-semibold" style={{ float: 'left' }}>Upload Gambar Buku</Form.Label>
                                     <Form.Control
+                                        disabled
                                         style={{ borderRadius: 10 }}
                                         className="mb-4"
                                         type="file"
@@ -191,11 +184,7 @@ const UpdateBook = () => {
                                 </Form.Group>
                             </Col>
                             <Col md={6}>
-                                {previewImage ? (
-                                    <Image src={previewImage} alt="Preview Book" style={{ width: '300px', height: '450px', marginTop: '10px', borderRadius: 30, objectFit: 'cover' }} />
-                                ) : (
-                                    currentImage && <Image src={currentImage} alt="Current Book" style={{ width: '300px', height: '450px', marginTop: '10px', borderRadius: 30, objectFit: 'cover' }} />
-                                )}
+                                {currentImage && <Image src={currentImage} alt="Current Book" style={{ width: '300px', height: '450px', marginTop: '10px', borderRadius: 30, objectFit: 'cover'}} />}
                             </Col>
                         </Row>
                         <Button variant='primary' className='fw-semibold mb-2 me-3 mt-4' type="submit" style={{ paddingLeft: 40, paddingRight: 40, paddingTop: 10, paddingBottom: 10, borderRadius: 12, fontSize: 18, float: 'left' }}>
